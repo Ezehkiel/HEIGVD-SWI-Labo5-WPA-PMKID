@@ -49,10 +49,34 @@ Utilisant votre script précédent, le modifier pour réaliser les taches suivan
    - Identiques &rarr; La passphrase utilisée est correcte
    - Différents &rarr; Essayer avec une nouvelle passphrase
 
+> Le script se trouve [ici](.files/pmkid_attack.py)
+>
+> 
+
 
 ### 3. Attaque hashcat
 
 A manière de comparaison, réaliser l'attaque sur le [fichier de capture](files/PMKID_handshake.pcap) utilisant la méthode décrite [ici](https://hashcat.net/forum/thread-7717.html).
+
+> Pour cette étape nous avons utilisé une VM kali afin de profiter du dictionnaire rockyou.txt qui est déjà installé dessus. Donc comme dans la méthode donné nous avons d'abord exécuté la commande suivante :
+>
+> ```bash
+> ./hcxpcaptool -z ../test.16800 ../HEIGVD-SWI-Labo5-WPA-PMKID/files/PMKID_handshake.pcap
+> ```
+>
+> Cette commande a réussi a trouver 2 PMKIDs dans notre capture. 
+>
+> ![](img/3_1.png)
+>
+> Ensuite nous utilisons `hashcat` avec le dictionnaire `rockyou.txt` afin d'essayer de trouver le mot de passe. 
+>
+> ![](img/3_2.png)
+>
+> Après seulement 2 seconde `hashcat` nous donne le mot de passe qui était `admin123`.
+>
+> Si nous utilisons notre script (mono-thread) il nous faut beaucoup plus de temps (~1 heure pour 70'000 password)
+>
+> ![](img/2_1.png)
 
 
 ## Livrables
