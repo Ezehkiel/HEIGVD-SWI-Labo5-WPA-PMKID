@@ -8,19 +8,6 @@
 
 ## Laboratoire WPA - PMKID
 
-__A faire en équipes de deux personnes__
-
-__Développement à faire en Python 3__
-
-### Pour cette partie pratique, vous devez être capable de :
-
-* A partir d’une capture Wireshark, extraire la valeur de la PMKID utilisant Scapy
-* Ecrire un script Python pour Cracker la passphrase WPA utilisant la PMKID
-
-Pour l'explication de l'attaque, référez vous à la video suivante :
-
-[![PMKID attack](http://img.youtube.com/vi/APkk9C2sydM/0.jpg)](http://www.youtube.com/watch?v=APkk9C2sydM "PMKID attack")
-
 
 ## Travail à réaliser
 
@@ -49,34 +36,42 @@ Utilisant votre script précédent, le modifier pour réaliser les taches suivan
    - Identiques &rarr; La passphrase utilisée est correcte
    - Différents &rarr; Essayer avec une nouvelle passphrase
 
-> Le script se trouve [ici](.files/pmkid_attack.py)
+> Le script se trouve [ici](.files/pmkid_attack.py). 
 >
-> 
+> Nous avons fait en sorte d'afficher une barre de progression afin que l'on puisse suivre visuellement le nombre de mots de passe testés. Cette barre nécessite le paquet pip `tqdm`. S'il n'est pas installé, le script s’exécutera normalement sans faire d'erreur (mais sans barre de progression).
+>
+> Il est possible de donner en entrée un fichier avec des mots de passe à l'aide du paramètre `-f` . Si aucun fichier n'est donné, le script utilisera pas défaut le fichier `passwords.txt` qui se trouve à coté de lui.
+>
+> ![](img/2_2.png)
+>
+> ![](img/2_3.png)
+>
+> On peut constater sur la capture ci-dessus que le script n'est pas très rapide pour tester une liste de mots de passe. Pour une vraie solution de crackage de mot de passe, il faudrait en multi-threader l'exécution.
 
 
 ### 3. Attaque hashcat
 
 A manière de comparaison, réaliser l'attaque sur le [fichier de capture](files/PMKID_handshake.pcap) utilisant la méthode décrite [ici](https://hashcat.net/forum/thread-7717.html).
 
-> Pour cette étape nous avons utilisé une VM kali afin de profiter du dictionnaire rockyou.txt qui est déjà installé dessus. Donc comme dans la méthode donné nous avons d'abord exécuté la commande suivante :
+> Comme dans la méthode donnée, nous avons d'abord exécuté la commande suivante :
 >
 > ```bash
 > ./hcxpcaptool -z ../test.16800 ../HEIGVD-SWI-Labo5-WPA-PMKID/files/PMKID_handshake.pcap
 > ```
 >
-> Cette commande a réussi a trouver 2 PMKIDs dans notre capture. 
+> Cette commande a réussi à trouver 2 PMKIDs dans notre capture. 
 >
 > ![](img/3_1.png)
 >
-> Ensuite nous utilisons `hashcat` avec le dictionnaire `rockyou.txt` afin d'essayer de trouver le mot de passe. 
+> Ensuite, nous utilisons `hashcat` avec le dictionnaire `rockyou.txt`, disponible nativement avec Kali Linux, afin d'essayer de trouver le mot de passe.
 >
 > ![](img/3_2.png)
 >
-> Après seulement 2 seconde `hashcat` nous donne le mot de passe qui était `admin123`.
+> Après seulement 2 secondes (mais en ayant chargé le dictionnaire dans le cache au préalable), `hashcat` nous donne le mot de passe qui était `admin123`.
 >
-> Si nous utilisons notre script (mono-thread) il nous faut beaucoup plus de temps (~1 heure pour 70'000 password)
+> Si nous utilisons notre script (mono-threadé) il nous faut beaucoup plus de temps (01h24). Et cela en tenant compte que le mot de passe recherché se trouve relativement au début du dictionnaire.
 >
-> ![](img/2_1.png)
+> ![](img/3_3.png)
 
 
 ## Livrables

